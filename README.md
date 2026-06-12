@@ -1,12 +1,33 @@
+<div align="center">
+
 # nytbench
 
-An apples-to-apples agent benchmark for solving New York Times crossword puzzles.
+**An apples-to-apples benchmark for LLM crossword solvers**
+
+```
+┌───┬───┬───┬───┬───┬───┬───┬───┬───┐
+│ N │ Y │ T │███│ B │ E │ N │ C │ H │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│███│███│ E │███│███│ V │███│███│███│
+├───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│███│███│ S │███│███│ A │███│███│███│
+├───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│███│███│ T │███│███│ L │███│███│███│
+└───┴───┴───┴───┴───┴───┴───┴───┴───┘
+```
+
+[![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/langchain-ai/langgraph)
+[![Puzzles](https://img.shields.io/badge/puzzles-New%20York%20Times-000000?style=flat-square)](https://www.nytimes.com/crosswords)
+[![License: MIT](https://img.shields.io/badge/license-MIT-22C55E?style=flat-square)](LICENSE)
+
+</div>
 
 ---
 
 ## Overview
 
-`nytbench` evaluates LLM-based agents on a curated, stratified set of NYT crossword puzzles under a controlled, reproducible environment. Every agent receives identical puzzle states, an identical action space, and is scored by an identical grader — eliminating prompt-format advantages and ensuring fair comparison.
+`nytbench` evaluates LLM-based agents on a curated, stratified set of NYT crossword puzzles under a controlled, reproducible environment. Every agent receives identical puzzle states, an identical action space, and is scored by an identical grader — eliminating prompt-format advantages and ensuring fair model comparison.
 
 ## Project Structure
 
@@ -32,7 +53,7 @@ nytbench/
 pip install -r requirements.txt
 ```
 
-You will need a valid NYT Games subscription cookie to scrape puzzles (see `src/pipeline/scraper.py`).
+You will need a valid NYT Games subscription cookie to scrape puzzles (see [src/pipeline/scraper.py](src/pipeline/scraper.py)).
 
 ## Zero-Contamination Rules
 
@@ -65,4 +86,14 @@ python scripts/run_benchmark.py --day monday --model claude-sonnet-4-6 --puzzles
 
 ## Stratified Splits
 
-Puzzles are split by publication day (Monday–Sunday) as a proxy for difficulty. Each split contains at least 50 puzzles. The `flow` metric (graph-theoretic crossing density) is logged per puzzle to enable finer difficulty analysis.
+Puzzles are split by publication day (Monday–Sunday) as a proxy for difficulty. Each split targets at least 50 puzzles per day.
+
+### Flow Metric
+
+Each puzzle is annotated with a **Flow** score: the fraction of white squares that sit at the intersection of an Across and a Down answer. Higher Flow means denser crossing constraints — a useful continuous difficulty signal that complements the weekday proxy.
+
+> Flow metric concept derived from statistics published by [XWord Info](https://www.xwordinfo.com), an indispensable reference for NYT crossword analysis. XWord Info is the work of Jim Horne and is not affiliated with this project.
+
+## Attribution
+
+Puzzle files are downloaded from the New York Times Games archive and require a valid NYT subscription. The NYT crossword is a registered trademark of The New York Times Company. This project is an independent research benchmark and is not affiliated with or endorsed by the New York Times.

@@ -6,6 +6,10 @@ intersections between across and down answers divided by the total number
 of white squares. Higher flow => more constraints => (generally) harder
 to solve by brute-force but easier to verify by crossing.
 
+Metric concept derived from statistics published by XWord Info (xwordinfo.com),
+an independent NYT crossword reference maintained by Jim Horne. Not affiliated
+with this project.
+
 Formula:
     flow = |{(r, c) : square is shared by an Across and a Down answer}|
            / |{(r, c) : square is white}|
