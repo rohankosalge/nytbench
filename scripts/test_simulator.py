@@ -118,10 +118,10 @@ obs4, _, _, info4 = env.step(
 )
 check("WRITE non-alpha answer rejected",          "error" in info4)
 
-# 2e. Non-existent direction/number for ERASE
-env.step({"type": "ERASE", "direction": "across", "number": 1})
+# 2e. ERASE a previously written answer
+obs_erase, _, _, _ = env.step({"type": "ERASE", "direction": "across", "number": 1})
 check("ERASE restores 1-Across to unsolved",
-      1 in env._state.unsolved_across)
+      1 in obs_erase["unsolved_across"])
 
 # 2f. GET_CLUE returns correct text
 obs5, _, _, info5 = env.step(
