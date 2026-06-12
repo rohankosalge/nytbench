@@ -26,10 +26,10 @@ WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 
 def _detect_rebus(puzzle: puz.Puzzle) -> bool:
     """Return True if any square requires more than one character."""
-    if puzzle.rebus():
-        table = puzzle.rebus().get_rebus_table()
-        return bool(table)
-    return False
+    try:
+        return puzzle.rebus().has_rebus()
+    except Exception:
+        return False
 
 
 def parse_puz(puz_path: Path) -> dict:
@@ -49,13 +49,18 @@ def parse_puz(puz_path: Path) -> dict:
     clues_across = {entry["num"]: entry["clue"] for entry in numbering.across}
     clues_down = {entry["num"]: entry["clue"] for entry in numbering.down}
 
+    # puzpy fill uses '-' for empty white squares; normalise to ' '
+    grid = ["." if ch == "." else " " for ch in puzzle.fill]
+    # puzpy solution uses '.' for black squares, uppercase letters otherwise
+    solution = list(puzzle.solution)
+
     return {
         "date": stem,
         "weekday": weekday,
         "width": puzzle.width,
         "height": puzzle.height,
-        "grid": list(puzzle.fill),
-        "solution": list(puzzle.solution),
+        "grid": grid,
+        "solution": solution,
         "clues_across": clues_across,
         "clues_down": clues_down,
         "has_rebus": _detect_rebus(puzzle),
