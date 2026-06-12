@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.*
+
+# Data (raw puzzles are large and may contain licensed content)
+data/raw_puz/
+data/processed_json/
+data/stratified_splits/
+
+# Results
+results/
+*.jsonl
+*.csv
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
