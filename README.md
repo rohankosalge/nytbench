@@ -36,7 +36,7 @@ You will need a valid NYT Games subscription cookie to scrape puzzles (see `src/
 
 ## Zero-Contamination Rules
 
-1. **Date cutoff**: Only puzzles published on or before **February 1, 2026** are included. Any puzzle after this date may appear in a model's training data and is excluded.
+1. **Date floor**: Only puzzles published **on or after February 1, 2026** are included. Puzzles before this date risk appearing in model training corpora and are excluded.
 2. **No rebus puzzles**: Puzzles requiring multi-character squares are discarded to keep the action space uniform.
 3. **No human hints**: The agent receives only the clue list and the current board state — no external puzzle databases or answer lists are injected.
 4. **Frozen scaffolding**: The agent's action space (`GET_CLUE`, `WRITE`, `ERASE`) and system prompt are identical across all evaluated models.
@@ -44,10 +44,13 @@ You will need a valid NYT Games subscription cookie to scrape puzzles (see `src/
 ## Quickstart
 
 ```bash
-# 1. Build the dataset (requires NYT credentials in env)
-python scripts/build_dataset.py --start 2020-01-01 --end 2026-02-01 --out data/
+# Initial build — scrapes Feb 1 2026 → today, filters, and splits by weekday
+python scripts/build_dataset.py
 
-# 2. Run a benchmark against Monday puzzles
+# Incremental update — only downloads puzzles not yet on disk, then re-runs all steps
+python scripts/build_dataset.py --sync
+
+# Run a benchmark against Monday puzzles
 python scripts/run_benchmark.py --day monday --model claude-sonnet-4-6 --puzzles 50
 ```
 
