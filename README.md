@@ -1,10 +1,8 @@
 <div align="center">
 
-# nytbench
+<img src="assets/logo.svg" alt="NYTBENCH" width="480">
 
 **An apples-to-apples benchmark for LLM crossword solvers**
-
-<img src="assets/logo.svg" alt="nytbench logo" width="480">
 
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://github.com/langchain-ai/langgraph)
