@@ -160,9 +160,12 @@ check("unsolved_down is empty",            len(obs["unsolved_down"]) == 0)
 # ─────────────────────────────────────────────────────────────
 print("\n── Phase 4: Incorrect solve ─────────────────────────────")
 
+# AXPLE is wrong (should be APPLE) but only differs at a non-crossing middle
+# square, so every crossing letter still agrees and the board fills completely.
+# (A word that conflicts at a crossing square is now rejected by the validator.)
 env.reset()
 for direction, number, answer in [
-    ("across", 1, "GRAPE"),  # wrong — GRAPE ≠ APPLE
+    ("across", 1, "AXPLE"),  # wrong — AXPLE ≠ APPLE, but crossings A...E still hold
     ("across", 3, "TESTS"),
     ("down",   1, "ALOFT"),
     ("down",   2, "EARNS"),

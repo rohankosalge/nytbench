@@ -52,7 +52,10 @@ class CrosswordEnv:
 
         elif atype == "WRITE":
             ok, msg = self.validator.validate_write(
-                action["direction"], action["number"], action["answer"]
+                action["direction"],
+                action["number"],
+                action["answer"],
+                self._state.grid,
             )
             if ok:
                 self._state.write(action["direction"], action["number"], action["answer"])
