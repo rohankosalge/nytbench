@@ -150,6 +150,21 @@ class AgentBoard:
                     return False
         return True
 
+    def to_grid(self) -> list[str]:
+        """Flatten the board into the grader's grid format.
+
+        '.' for black squares, the placed letter for filled white squares, and
+        ' ' for empty white squares — laid out row-major like the solution list.
+        """
+        grid: list[str] = []
+        for y in range(1, self.height + 1):
+            for x in range(1, self.width + 1):
+                if self.is_black(x, y):
+                    grid.append(".")
+                else:
+                    grid.append(self.fill.get((x, y), " "))
+        return grid
+
     # ── observation ─────────────────────────────────────────────────────
     def render_observation(self) -> str:
         filled = len(self.fill)

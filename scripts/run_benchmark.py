@@ -20,8 +20,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from src.agent.orchestrator import run_episode
-from src.environment.simulator import CrosswordEnv
+from src.agent.multi.orchestrator import run_episode
 from src.evaluation.grader import grade
 from src.evaluation.metrics import aggregate, print_report
 
@@ -31,13 +30,37 @@ SPLITS_DIR = Path("data/stratified_splits")
 
 
 def load_llm(model: str):
+    """Return a model-agnostic callable: llm(system, messages) -> str.
+
+    The multi-agent solver talks to every backend through this one signature, so
+    we wrap whichever LangChain chat model the identifier selects.
+    """
     if model.startswith("claude"):
         from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model=model, max_tokens=1024)
-    if model.startswith("gpt") or model.startswith("o"):
+        chat = ChatAnthropic(model=model, max_tokens=1024)
+    elif model.startswith("gpt") or model.startswith("o"):
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(model=model)
-    raise ValueError(f"Unrecognised model prefix for: {model!r}")
+        chat = ChatOpenAI(model=model)
+    else:
+        raise ValueError(f"Unrecognised model prefix for: {model!r}")
+    return _wrap_chat_model(chat)
+
+
+def _wrap_chat_model(chat):
+    """Adapt a LangChain chat model to the solver's llm(system, messages) form."""
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+    def llm(system: str, messages: list[dict]) -> str:
+        lc_messages = [SystemMessage(content=system)]
+        for m in messages:
+            role = m["role"]
+            if role == "assistant":
+                lc_messages.append(AIMessage(content=m["content"]))
+            else:
+                lc_messages.append(HumanMessage(content=m["content"]))
+        return chat.invoke(lc_messages).content
+
+    return llm
 
 
 def main() -> None:
@@ -45,7 +68,7 @@ def main() -> None:
     parser.add_argument("--day", required=True, help="Weekday split to evaluate (e.g. monday)")
     parser.add_argument("--model", required=True, help="Model identifier (e.g. claude-sonnet-4-6)")
     parser.add_argument("--puzzles", type=int, default=50, help="Number of puzzles to evaluate")
-    parser.add_argument("--max-turns", type=int, default=200, help="Max agent turns per puzzle")
+    parser.add_argument("--max-rounds", type=int, default=8, help="Max constraint-propagation rounds per puzzle")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for puzzle sampling")
     parser.add_argument("--out", default=None, help="JSONL output file path")
     parser.add_argument("--splits-dir", default=str(SPLITS_DIR), help="Path to stratified splits")
@@ -72,10 +95,9 @@ def main() -> None:
     with out_path.open("w") as f:
         for i, puz_path in enumerate(puzzle_paths, 1):
             print(f"[{i}/{len(puzzle_paths)}] {puz_path.stem}")
-            env = CrosswordEnv.from_json(puz_path)
-            episode = run_episode(llm, env, max_turns=args.max_turns)
-
             puzzle_meta = json.loads(puz_path.read_text())
+            episode = run_episode(llm, puzzle_meta, max_rounds=args.max_rounds)
+
             grade_result = grade(episode["grid"], puzzle_meta["solution"])
             record = {
                 **grade_result,
