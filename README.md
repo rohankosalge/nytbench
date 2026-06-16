@@ -48,7 +48,18 @@ You will need a valid NYT Games subscription cookie to scrape puzzles (see [src/
 1. **Date floor**: Only puzzles published **on or after February 1, 2026** are included. Puzzles before this date risk appearing in model training corpora and are excluded.
 2. **No rebus puzzles**: Puzzles requiring multi-character squares are discarded to keep the action space uniform.
 3. **No human hints**: The agent receives only the clue list and the current board state — no external puzzle databases or answer lists are injected.
-4. **Frozen scaffolding**: The agent's action space (`GET_CLUE`, `WRITE`, `ERASE`) and system prompt are identical across all evaluated models.
+4. **Frozen scaffolding**: Within an agent track (see below), the action space and prompts are identical across all evaluated models.
+
+## Agent Tracks
+
+`nytbench` ships two agent designs. Both are **model-agnostic** — every model is driven through the same `llm(system, messages) -> str` callable, so a run fixes one model and any cross-model comparison *within a track* stays apples-to-apples. The two tracks differ in their scaffolding, so comparing a model across tracks is an agent-vs-agent comparison, not a model-vs-model one.
+
+| Track | Module | Scaffolding |
+|---|---|---|
+| **Baseline** | [src/agent/loop.py](src/agent/loop.py) | A single neutral system prompt and a frozen action space (`GET_CLUE`, `WRITE`, `ERASE`). No per-model or per-clue prompt tuning — the low-effort reference. |
+| **Multi-agent** | [src/agent/multi/](src/agent/multi/) | Five role-specialized nodes mirroring the human solving arc: a **Syntax Extractor** turns each clue into a strict grammatical spec, a **Sprinter** locks in high-confidence gimmes/fill-in-the-blanks, a **Pattern Matcher** and **Lateral Thinker** fill constrained and wordplay slots, and an **Eraser** backtracks on crossing conflicts. |
+
+Report the two tracks as separate leaderboards. `run_benchmark.py` currently drives the multi-agent track.
 
 ## Quickstart
 
