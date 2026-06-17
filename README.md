@@ -112,7 +112,7 @@ Any model is driven through the same `llm(system, messages) -> str` callable, so
 | Google | `gemini*` | `GOOGLE_API_KEY` | `gemini-2.5-pro` |
 | OpenRouter (passthrough) | `openrouter/<provider>/<model>` | `OPENROUTER_API_KEY` | `openrouter/x-ai/grok-4`, `openrouter/deepseek/deepseek-r1` |
 
-The **OpenRouter passthrough** reaches almost any hosted model (Grok, DeepSeek, Llama, Qwen, Mistral, …) through one OpenAI-compatible endpoint — everything after the `openrouter/` prefix is sent verbatim as the OpenRouter model id.
+The **OpenRouter passthrough** reaches almost any hosted model (Grok, DeepSeek, Llama, Qwen, Mistral, …) through one OpenAI-compatible endpoint — everything after the `openrouter/` prefix is sent verbatim as the OpenRouter model id. Note: Fable 5 cannot be used due to the recent rollback.
 
 ### Fair-comparison flags
 
