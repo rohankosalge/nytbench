@@ -20,10 +20,11 @@
 ## Project Structure
 
 ```
-nytbench/
-├── data/
-│   ├── raw_puz/              # Downloaded .puz files (not committed)
+nytbench/                     # NOTE: no puzzle data ships with this repo —
+├── data/                     #       every data/ subdir below is git-ignored
+│   ├── raw_puz/              # Raw puzzle downloads from the NYT API
 │   ├── processed_json/       # Machine-readable JSON puzzle states
+│   ├── filtered_json/        # Puzzles passing the contamination/format filters
 │   └── stratified_splits/    # Puzzles organized by weekday difficulty
 ├── src/
 │   ├── pipeline/             # Data curation and preprocessing
@@ -41,7 +42,33 @@ nytbench/
 pip install -r requirements.txt
 ```
 
-You will need a valid NYT Games subscription cookie to scrape puzzles (see [src/pipeline/scraper.py](src/pipeline/scraper.py)).
+## Building the Dataset
+
+**No puzzle data is distributed with this repository.** NYT crossword content is
+licensed by The New York Times, so every `data/` subdirectory is git-ignored and
+must be built locally by each user from their own NYT Games subscription.
+
+1. Sign in to your NYT Games subscription and provide credentials via environment
+   variables — either a session cookie or an email/password pair:
+
+   ```bash
+   # Option A: paste the value of the `NYT-S` cookie from a logged-in browser session
+   export NYT_COOKIE="<your NYT-S cookie value>"
+
+   # Option B: let the scraper log in for you
+   export NYT_EMAIL="you@example.com"
+   export NYT_PASSWORD="..."
+   ```
+
+2. Run the build, which downloads, parses, filters, and stratifies puzzles into
+   `data/`:
+
+   ```bash
+   python scripts/build_dataset.py            # Feb 1 2026 → today
+   python scripts/build_dataset.py --sync     # incremental top-up
+   ```
+
+See [src/pipeline/scraper.py](src/pipeline/scraper.py) for the download details.
 
 ## Zero-Contamination Rules
 

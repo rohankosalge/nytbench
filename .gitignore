@@ -12,9 +12,10 @@ env/
 .env
 .env.*
 
-# Data (raw puzzles are large and may contain licensed content)
+# Data (puzzle content is licensed by the NYT and must never be committed)
 data/raw_puz/
 data/processed_json/
+data/filtered_json/
 data/stratified_splits/
 
 # Results
