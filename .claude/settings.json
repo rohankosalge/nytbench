@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" 2>/dev/null || exit 0; git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0; git add -A; git diff --cached --quiet && exit 0; git commit -m \"Auto-commit $(date '+%Y-%m-%d %H:%M:%S')\" >/dev/null 2>&1; git push origin HEAD:main >/dev/null 2>&1 || true",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" 2>/dev/null || exit 0; git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0; git add -A; git diff --cached --quiet && exit 0; st=$(git diff --cached --name-status); n=$(echo \"$st\" | grep -c .); a=$(echo \"$st\" | grep -c '^A'); d=$(echo \"$st\" | grep -c '^D'); if [ \"$a\" = \"$n\" ]; then verb=Add; elif [ \"$d\" = \"$n\" ]; then verb=Remove; else verb=Update; fi; names=$(git diff --cached --name-only | sed 's#.*/##' | head -3 | paste -sd, - | sed 's/,/, /g'); extra=$((n-3)); if [ \"$extra\" -gt 0 ]; then names=\"$names (+$extra more)\"; fi; if [ \"$n\" -eq 1 ]; then subject=\"$verb $names\"; else subject=\"$verb $n files: $names\"; fi; git commit -m \"$subject\" -m \"$st\" >/dev/null 2>&1; git push origin HEAD:main >/dev/null 2>&1 || true",
             "timeout": 60,
             "statusMessage": "Auto-committing and pushing to main"
           }
