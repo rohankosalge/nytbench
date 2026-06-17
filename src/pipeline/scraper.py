@@ -1,5 +1,19 @@
 """
-Downloads .puz files from the NYT crossword archive for an active subscriber.
+Downloads NYT crossword puzzles for an active subscriber.
+
+Data source
+-----------
+NYT removed the legacy printable ``.puz`` endpoint, so puzzles are now fetched
+from the JSON API in two steps:
+
+  1. List puzzle IDs for a date range via the v3 ``puzzles.json`` endpoint.
+  2. Download each puzzle body (grid, clues, answers) via the v6
+     ``puzzle/{id}.json`` endpoint.
+
+The v6 endpoint returns 403 unless the request carries the
+``x-games-auth-bypass: true`` header in addition to a valid ``NYT-S`` cookie;
+both are applied by :func:`_session`. The raw v6 JSON is saved verbatim to disk
+(one ``{date}.json`` per puzzle) and canonicalised later by ``parser.py``.
 
 Authentication
 --------------
@@ -11,14 +25,15 @@ ways:
   2. By email + password, via `login()`, which performs the NYT account login
      and extracts the `NYT-S` token for you. Set NYT_EMAIL and NYT_PASSWORD.
 
-The download endpoint and login flow are NYT-internal and may change; both are
-isolated here so they are easy to update in one place.
+The endpoints and login flow are NYT-internal and may change; they are isolated
+here so they are easy to update in one place.
 
 Usage:
     from src.pipeline.scraper import sync_to_today
     sync_to_today()                      # uses NYT_COOKIE or NYT_EMAIL/PASSWORD
 """
 
+import json
 import os
 import time
 from datetime import date, timedelta
@@ -26,8 +41,10 @@ from pathlib import Path
 
 import requests
 
-# Endpoint that returns a printable .puz for a given ISO date (subscriber only).
-NYT_PUZ_URL = "https://www.nytimes.com/svc/crosswords/v2/puzzle/print/{date}.puz"
+# Lists puzzle metadata (including IDs) for a date range. Cookie-authenticated.
+NYT_LIST_URL = "https://www.nytimes.com/svc/crosswords/v3/puzzles.json"
+# Returns a single puzzle body (grid, clues, answers) by numeric puzzle ID.
+NYT_PUZZLE_URL = "https://www.nytimes.com/svc/crosswords/v6/puzzle/{id}.json"
 # Account login endpoint used to exchange credentials for an NYT-S token.
 NYT_LOGIN_URL = "https://myaccount.nytimes.com/svc/ios/v2/login"
 
@@ -78,14 +95,42 @@ def resolve_cookie(cookie: str | None = None) -> str:
 def _session(cookie: str) -> requests.Session:
     s = requests.Session()
     s.cookies.set("NYT-S", cookie, domain=".nytimes.com")
-    s.headers.update({"User-Agent": "nytbench/0.1 (+github)"})
+    s.headers.update(
+        {
+            "User-Agent": "nytbench/0.1 (+github)",
+            # Required by the v6 puzzle endpoint; without it every request 403s.
+            "x-games-auth-bypass": "true",
+        }
+    )
     return s
+
+
+def list_puzzle_ids(
+    start: date,
+    end: date,
+    session: requests.Session,
+    publish_type: str = "daily",
+) -> dict[date, int]:
+    """Return a {publish_date: puzzle_id} map for [start, end] via the v3 list API."""
+    params = {
+        "publish_type": publish_type,
+        "date_start": start.isoformat(),
+        "date_end": end.isoformat(),
+        # The endpoint defaults to 100 results; raise it to cover any range.
+        "limit": (end - start).days + 5,
+    }
+    resp = session.get(NYT_LIST_URL, params=params, timeout=20)
+    resp.raise_for_status()
+    out: dict[date, int] = {}
+    for entry in resp.json().get("results", []):
+        out[date.fromisoformat(entry["print_date"])] = entry["puzzle_id"]
+    return out
 
 
 def _latest_downloaded(out_dir: Path) -> date | None:
     """Return the most recent puzzle date already on disk, or None."""
     dates = []
-    for p in out_dir.glob("*.puz"):
+    for p in out_dir.glob("*.json"):
         try:
             dates.append(date.fromisoformat(p.stem))
         except ValueError:
@@ -122,7 +167,7 @@ def download_range(
     out_dir: Path = DEFAULT_OUT,
     cookie: str | None = None,
 ) -> list[Path]:
-    """Download .puz files for every calendar day in [start, end].
+    """Download puzzle JSON for every published day in [start, end].
 
     Already-present files are skipped. Returns paths of successfully
     downloaded files only (skips are not included).
@@ -132,28 +177,28 @@ def download_range(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     session = _session(cookie)
+    ids = list_puzzle_ids(start, end, session)
     downloaded: list[Path] = []
-    current = start
 
-    while current <= end:
-        date_str = current.strftime("%Y-%m-%d")
-        dest = out_dir / f"{date_str}.puz"
+    for pub_date in sorted(ids):
+        date_str = pub_date.isoformat()
+        dest = out_dir / f"{date_str}.json"
 
         if dest.exists():
-            current += timedelta(days=1)
             continue
 
-        url = NYT_PUZ_URL.format(date=date_str)
+        url = NYT_PUZZLE_URL.format(id=ids[pub_date])
         try:
             resp = session.get(url, timeout=15)
             resp.raise_for_status()
-            dest.write_bytes(resp.content)
+            # Validate it parses before writing, so a partial/HTML error body
+            # never lands on disk as a "puzzle".
+            dest.write_text(json.dumps(resp.json()))
             downloaded.append(dest)
             print(f"  downloaded {date_str}")
-        except requests.HTTPError as exc:
+        except (requests.HTTPError, ValueError) as exc:
             print(f"  skip {date_str}: {exc}")
 
         time.sleep(RATE_LIMIT_SECONDS)
-        current += timedelta(days=1)
 
     return downloaded

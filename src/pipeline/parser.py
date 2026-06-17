@@ -131,22 +131,107 @@ def parse_puz(puz_path: Path) -> dict:
     }
 
 
-def parse_all(puz_dir: Path, out_dir: Path) -> list[Path]:
-    """Parse every .puz in puz_dir and write JSON files to out_dir."""
+def parse_v6_json(json_path: Path) -> dict:
+    """Parse a raw NYT v6 puzzle JSON file into the canonical dict.
+
+    The v6 body lays the grid out row-major in ``cells``: a black square is an
+    empty object, a white square carries ``answer`` (the full solution string
+    for that square, multi-character on a rebus), ``label`` (its grid number),
+    and ``clues`` (indices into the ``clues`` list). Each clue carries its
+    ``cells`` (grid indices), ``direction``, ``label``, and ``text``.
+    """
+    raw = json.loads(json_path.read_text())
+    body = raw["body"][0]
+    width = body["dimensions"]["width"]
+    height = body["dimensions"]["height"]
+    cells = body["cells"]
+    stem = json_path.stem  # expected format: YYYY-MM-DD
+
+    try:
+        pub_date = date.fromisoformat(stem)
+        weekday = WEEKDAYS[pub_date.weekday()]
+    except ValueError:
+        weekday = None
+
+    # A cell is white iff it carries an answer; black squares are empty objects.
+    def is_white(cell: dict) -> bool:
+        return bool(cell) and "answer" in cell
+
+    grid = [" " if is_white(c) else "." for c in cells]
+    # One entry per square: the full answer string for a white square (a single
+    # letter except on rebus squares, which the filter later discards), "." for
+    # black squares.
+    solution = [c["answer"] if is_white(c) else "." for c in cells]
+
+    def _clue_text(clue: dict) -> str:
+        return "".join(part.get("plain", "") for part in clue.get("text", []))
+
+    clues_across: dict[int, str] = {}
+    clues_down: dict[int, str] = {}
+    entries: dict[str, list[dict]] = {"across": [], "down": []}
+
+    for clue in body["clues"]:
+        num = int(clue["label"])
+        text = _clue_text(clue)
+        answer = "".join(cells[i].get("answer", "") for i in clue["cells"])
+        record = {
+            "num": num,
+            "clue": text,
+            "len": len(clue["cells"]),
+            "answer": answer,
+        }
+        if clue["direction"].lower() == "across":
+            clues_across[num] = text
+            entries["across"].append(record)
+        else:
+            clues_down[num] = text
+            entries["down"].append(record)
+
+    entries["across"].sort(key=lambda e: e["num"])
+    entries["down"].sort(key=lambda e: e["num"])
+
+    # Single source of truth: a rebus exists iff some slot's true answer is
+    # longer than the number of squares allocated to it.
+    has_rebus = any(
+        len(e["answer"]) != e["len"]
+        for e in entries["across"] + entries["down"]
+    )
+
+    return {
+        "date": stem,
+        "weekday": weekday,
+        "width": width,
+        "height": height,
+        "grid": grid,
+        "solution": solution,
+        "clues_across": clues_across,
+        "clues_down": clues_down,
+        "entries": entries,
+        "has_rebus": has_rebus,
+    }
+
+
+def parse_all(raw_dir: Path, out_dir: Path) -> list[Path]:
+    """Parse every raw puzzle in raw_dir and write canonical JSON to out_dir.
+
+    Handles both the current NYT v6 JSON files (``*.json``) and legacy ``.puz``
+    files (used by the test fixtures).
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
 
-    for puz_path in sorted(Path(puz_dir).glob("*.puz")):
-        dest = out_dir / f"{puz_path.stem}.json"
+    sources = sorted(Path(raw_dir).glob("*.json")) + sorted(Path(raw_dir).glob("*.puz"))
+    for src in sources:
+        dest = out_dir / f"{src.stem}.json"
         if dest.exists():
             written.append(dest)
             continue
         try:
-            data = parse_puz(puz_path)
+            data = parse_v6_json(src) if src.suffix == ".json" else parse_puz(src)
             dest.write_text(json.dumps(data, indent=2))
             written.append(dest)
         except Exception as exc:
-            print(f"  parse error {puz_path.name}: {exc}")
+            print(f"  parse error {src.name}: {exc}")
 
     return written
