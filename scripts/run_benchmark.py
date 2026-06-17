@@ -12,10 +12,19 @@ Environment variables:
     ANTHROPIC_API_KEY  — required for Anthropic models (claude*)
     OPENAI_API_KEY     — required for OpenAI models (gpt*/o*)
     GOOGLE_API_KEY     — required for Google models (gemini*)
+    OPENROUTER_API_KEY — required for OpenRouter passthrough models (openrouter/*)
+
+OpenRouter passthrough lets you evaluate almost any model (Grok, DeepSeek,
+Llama, Qwen, Mistral, ...) through one OpenAI-compatible endpoint. Pass the
+model as `openrouter/<provider>/<model>`, e.g.:
+
+    --model openrouter/x-ai/grok-4
+    --model openrouter/deepseek/deepseek-r1
 """
 
 import argparse
 import json
+import os
 import random
 from pathlib import Path
 
@@ -48,7 +57,23 @@ def load_llm(model: str, max_tokens: int = 4096, temperature: float | None = Non
       would exclude the very models we want to evaluate. Pass it only for
       backends/models that accept it (OpenAI base chat, Gemini, Sonnet, etc.).
     """
-    if model.startswith("claude"):
+    if model.startswith("openrouter/"):
+        # Passthrough: everything after the prefix is the OpenRouter model id
+        # (e.g. "openrouter/x-ai/grok-4" -> "x-ai/grok-4"). OpenRouter speaks the
+        # OpenAI-compatible API, so we reuse ChatOpenAI with a custom base_url and
+        # reach dozens of models (Grok, DeepSeek, Llama, Qwen, Mistral, ...)
+        # through a single dependency.
+        from langchain_openai import ChatOpenAI
+        kwargs = {
+            "model": model.split("/", 1)[1],
+            "base_url": "https://openrouter.ai/api/v1",
+            "api_key": os.environ["OPENROUTER_API_KEY"],
+            "max_tokens": max_tokens,
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        chat = ChatOpenAI(**kwargs)
+    elif model.startswith("claude"):
         from langchain_anthropic import ChatAnthropic
         kwargs = {"model": model, "max_tokens": max_tokens}
         if temperature is not None:
@@ -69,7 +94,7 @@ def load_llm(model: str, max_tokens: int = 4096, temperature: float | None = Non
     else:
         raise ValueError(
             f"Unrecognised model prefix for: {model!r} "
-            "(expected one of: claude*, gpt*/o*, gemini*)"
+            "(expected one of: openrouter/*, claude*, gpt*/o*, gemini*)"
         )
     return _wrap_chat_model(chat)
 
