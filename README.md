@@ -15,7 +15,7 @@
 
 ## Overview
 
-`nytbench` evaluates LLM-based agents on a curated, stratified set of NYT crossword puzzles under a controlled, reproducible environment. Every agent receives identical puzzle states, an identical action space, and is scored by an identical grader — eliminating prompt-format advantages and ensuring fair model comparison.
+LLMs have seen great success on benchmarks regarding general quantitative thinking. What about for a challenge that requires out-of-the-box, intuitive reasoning? `nytbench` evaluates LLM-based agents on a curated, stratified set of NYT crossword puzzles under a controlled, reproducible environment. Every agent receives identical puzzle states, an identical action space, and is scored by an identical grader — eliminating prompt-format advantages and ensuring fair model comparison.
 
 ## Project Structure
 
