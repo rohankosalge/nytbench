@@ -101,6 +101,34 @@ python scripts/build_dataset.py --sync
 python scripts/run_benchmark.py --day monday --model claude-sonnet-4-6 --puzzles 50
 ```
 
+## Models
+
+Any model is driven through the same `llm(system, messages) -> str` callable, so the field is open-ended. The provider is selected by the `--model` prefix:
+
+| Provider | `--model` prefix | API key env var | Example |
+|---|---|---|---|
+| Anthropic | `claude*` | `ANTHROPIC_API_KEY` | `claude-opus-4-8`, `claude-sonnet-4-6` |
+| OpenAI | `gpt*` / `o*` | `OPENAI_API_KEY` | `gpt-5`, `o4-mini` |
+| Google | `gemini*` | `GOOGLE_API_KEY` | `gemini-2.5-pro` |
+| OpenRouter (passthrough) | `openrouter/<provider>/<model>` | `OPENROUTER_API_KEY` | `openrouter/x-ai/grok-4`, `openrouter/deepseek/deepseek-r1` |
+
+The **OpenRouter passthrough** reaches almost any hosted model (Grok, DeepSeek, Llama, Qwen, Mistral, …) through one OpenAI-compatible endpoint — everything after the `openrouter/` prefix is sent verbatim as the OpenRouter model id.
+
+### Fair-comparison flags
+
+Two `run_benchmark.py` flags keep model comparisons apples-to-apples:
+
+```bash
+python scripts/run_benchmark.py --day saturday --model gpt-5 \
+    --max-tokens 8192 \      # per-call output budget, applied identically to every provider
+    --temperature 0          # optional; omit for reasoning models that reject sampling params
+```
+
+- `--max-tokens` (default `4096`) is applied identically across providers, so no model gets a smaller or unbounded output budget than another. Keep it generous — reasoning models spend output tokens on internal thinking before emitting an action.
+- `--temperature` is **omitted by default** and only forwarded when set. Current Claude reasoning models (Opus 4.7/4.8, Fable 5) reject sampling parameters, so pass it only for backends that accept it (OpenAI base chat, Gemini, Sonnet, most OpenRouter models).
+
+> **Note:** This is an English, US-centric puzzle set. Models trained predominantly on non-US-English corpora start at a knowledge-coverage disadvantage that is independent of raw reasoning ability — worth stating when reporting cross-model results.
+
 ## Metrics
 
 | Metric | Description |
