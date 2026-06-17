@@ -2,6 +2,7 @@ puzpy>=1.0.0
 langgraph>=0.2.0
 langchain-anthropic>=0.2.0
 langchain-openai>=0.2.0
+langchain-google-genai>=2.0.0
 langchain-core>=0.3.0
 requests>=2.32.0
 beautifulsoup4>=4.12.0

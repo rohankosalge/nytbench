@@ -9,8 +9,9 @@ Usage:
         --out     results/monday_claude-sonnet.jsonl
 
 Environment variables:
-    ANTHROPIC_API_KEY  — required for Anthropic models
-    OPENAI_API_KEY     — required for OpenAI models
+    ANTHROPIC_API_KEY  — required for Anthropic models (claude*)
+    OPENAI_API_KEY     — required for OpenAI models (gpt*/o*)
+    GOOGLE_API_KEY     — required for Google models (gemini*)
 """
 
 import argparse
@@ -29,20 +30,47 @@ load_dotenv()
 SPLITS_DIR = Path("data/stratified_splits")
 
 
-def load_llm(model: str):
+def load_llm(model: str, max_tokens: int = 4096, temperature: float | None = None):
     """Return a model-agnostic callable: llm(system, messages) -> str.
 
     The multi-agent solver talks to every backend through this one signature, so
     we wrap whichever LangChain chat model the identifier selects.
+
+    Fairness notes
+    --------------
+    - `max_tokens` is applied identically across providers so no model is given
+      a smaller (or unbounded) output budget than another. Keep it generous:
+      reasoning models spend output tokens on internal thinking before emitting
+      an action, and too small a cap truncates them mid-reasoning.
+    - `temperature` is only forwarded when explicitly set. It is left unset by
+      default because current Claude reasoning models (Opus 4.7/4.8, Fable 5)
+      reject sampling parameters with a 400 — sending `temperature=0` to them
+      would exclude the very models we want to evaluate. Pass it only for
+      backends/models that accept it (OpenAI base chat, Gemini, Sonnet, etc.).
     """
     if model.startswith("claude"):
         from langchain_anthropic import ChatAnthropic
-        chat = ChatAnthropic(model=model, max_tokens=1024)
+        kwargs = {"model": model, "max_tokens": max_tokens}
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        chat = ChatAnthropic(**kwargs)
     elif model.startswith("gpt") or model.startswith("o"):
         from langchain_openai import ChatOpenAI
-        chat = ChatOpenAI(model=model)
+        kwargs = {"model": model, "max_tokens": max_tokens}
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        chat = ChatOpenAI(**kwargs)
+    elif model.startswith("gemini"):
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        kwargs = {"model": model, "max_output_tokens": max_tokens}
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        chat = ChatGoogleGenerativeAI(**kwargs)
     else:
-        raise ValueError(f"Unrecognised model prefix for: {model!r}")
+        raise ValueError(
+            f"Unrecognised model prefix for: {model!r} "
+            "(expected one of: claude*, gpt*/o*, gemini*)"
+        )
     return _wrap_chat_model(chat)
 
 
@@ -69,6 +97,21 @@ def main() -> None:
     parser.add_argument("--model", required=True, help="Model identifier (e.g. claude-sonnet-4-6)")
     parser.add_argument("--puzzles", type=int, default=50, help="Number of puzzles to evaluate")
     parser.add_argument("--max-rounds", type=int, default=8, help="Max constraint-propagation rounds per puzzle")
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4096,
+        help="Per-call output token budget, applied identically to every provider",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=None,
+        help=(
+            "Sampling temperature. Omitted by default; only set it for models "
+            "that accept sampling params (Claude Opus 4.7/4.8 and Fable 5 reject it)."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for puzzle sampling")
     parser.add_argument("--out", default=None, help="JSONL output file path")
     parser.add_argument("--splits-dir", default=str(SPLITS_DIR), help="Path to stratified splits")
@@ -87,7 +130,7 @@ def main() -> None:
         print("No puzzles found. Run build_dataset.py first.")
         return
 
-    llm = load_llm(args.model)
+    llm = load_llm(args.model, max_tokens=args.max_tokens, temperature=args.temperature)
     out_path = Path(args.out) if args.out else Path(f"results/{args.day}_{args.model}.jsonl")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
