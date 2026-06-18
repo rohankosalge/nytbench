@@ -10,3 +10,7 @@ python-dotenv>=1.0.0
 networkx>=3.3
 tqdm>=4.66.0
 pytest>=8.0.0
+
+# Solve viewer (scripts/record_solve.py + viz/server.py)
+fastapi>=0.110.0
+uvicorn>=0.29.0

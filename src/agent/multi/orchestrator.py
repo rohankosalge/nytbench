@@ -41,12 +41,17 @@ SlotKey = tuple[int, str]
 
 
 class MultiAgentSolver:
-    def __init__(self, llm: LLM) -> None:
+    def __init__(self, llm: LLM, emit: Callable[[dict], None] | None = None) -> None:
         self.syntax = SyntaxExtractor(llm)
         self.sprinter = Sprinter(llm)
         self.pattern = PatternMatcher(llm)
         self.lateral = LateralThinker(llm)
         self.eraser = Eraser(llm)
+
+        # Optional event sink. When set, every logged action is streamed to it
+        # alongside a snapshot of the board's fill at that instant — enough to
+        # replay the solve square-by-square (see scripts/record_solve.py).
+        self._emit = emit
 
         # Per-run state (initialized in solve()).
         self.board: AgentBoard | None = None
@@ -177,7 +182,7 @@ class MultiAgentSolver:
         """Validate a proposal and try to place it. Returns True if placed."""
         key = (slot.number, slot.direction)
         if not proposal.committed:
-            self._note(agent_name, key, "abstain")
+            self._note(agent_name, key, "abstain", reasoning=proposal.reasoning)
             return False
 
         word = proposal.answer
@@ -185,26 +190,34 @@ class MultiAgentSolver:
             self._note(
                 agent_name, key, "reject", word=word,
                 detail=f"length {len(word)} != slot {slot.length}",
+                confidence=proposal.confidence, reasoning=proposal.reasoning,
             )
             return False
         if require_high and proposal.confidence != "high":
             self._note(
                 agent_name, key, "skip-low", word=word,
                 detail=f"confidence {proposal.confidence}",
+                confidence=proposal.confidence, reasoning=proposal.reasoning,
             )
             return False
         if spec is not None:
             ok, reason = spec_allows(word, spec)
             if not ok:
                 # Backstop: the grammatical constraint is non-negotiable.
-                self._note(agent_name, key, "reject", word=word, detail=reason)
+                self._note(
+                    agent_name, key, "reject", word=word, detail=reason,
+                    confidence=proposal.confidence, reasoning=proposal.reasoning,
+                )
                 return False
 
-        return self._place(slot, word, proposal.confidence, agent_name)
+        return self._place(
+            slot, word, proposal.confidence, agent_name, reasoning=proposal.reasoning
+        )
 
     # ── placement & conflict resolution ──────────────────────────────────
     def _place(
-        self, slot: Slot, word: str, confidence: str, agent_name: str
+        self, slot: Slot, word: str, confidence: str, agent_name: str,
+        reasoning: str = "",
     ) -> bool:
         key = (slot.number, slot.direction)
         conflicts = self._conflicts(slot, word)
@@ -223,7 +236,10 @@ class MultiAgentSolver:
             "confidence": confidence,
             "agent": agent_name,
         }
-        self._note(agent_name, key, "place", word=word, detail=confidence)
+        self._note(
+            agent_name, key, "place", word=word, detail=confidence,
+            confidence=confidence, reasoning=reasoning,
+        )
         return True
 
     def _resolve_conflicts(
@@ -344,6 +360,8 @@ class MultiAgentSolver:
         action: str,
         word: str | None = None,
         detail: str = "",
+        confidence: str | None = None,
+        reasoning: str | None = None,
     ) -> None:
         entry = {
             "agent": agent,
@@ -357,6 +375,15 @@ class MultiAgentSolver:
             w = f" {word}" if word else ""
             d = f" ({detail})" if detail else ""
             print(f"  [{agent:8}] {action:8} {key[0]}-{key[1]}{w}{d}")
+        if self._emit is not None:
+            # board.fill is always current here: placements are written before
+            # the "place" note, and _rebuild_fill() runs before erase notes.
+            self._emit({
+                **entry,
+                "confidence": confidence,
+                "reasoning": reasoning,
+                "fill": {f"{x},{y}": ch for (x, y), ch in self.board.fill.items()},
+            })
 
 
 def solve_puzzle(llm: LLM, puzzle: dict, **kwargs) -> dict:

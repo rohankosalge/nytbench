@@ -23,6 +23,9 @@ results/
 *.jsonl
 *.csv
 
+# Solve recordings (embed licensed puzzle content; never commit)
+recordings/
+
 # Claude Code local (personal) settings
 .claude/settings.local.json
 

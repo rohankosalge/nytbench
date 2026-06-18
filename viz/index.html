@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nytbench · multi-agent solve viewer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="title">
+      <h1>multi-agent solve</h1>
+      <select id="rec-select" title="Choose a recording"></select>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <main>
+    <section class="board-pane">
+      <div id="grid" class="grid"></div>
+
+      <div class="controls">
+        <button id="restart" title="Restart">⏮</button>
+        <button id="step-back" title="Step back">◀</button>
+        <button id="play" title="Play / pause">▶</button>
+        <button id="step-fwd" title="Step forward">▶▶</button>
+        <label class="speed">
+          speed <output id="speed-val">1×</output>
+          <input id="speed" type="range" min="-2" max="3" step="1" value="0">
+        </label>
+        <label class="toggle"><input id="realtime" type="checkbox"> real-time</label>
+        <label class="toggle"><input id="answers" type="checkbox"> show answers</label>
+      </div>
+
+      <div class="progress">
+        <input id="scrub" type="range" min="-1" max="0" value="-1">
+        <div id="now" class="now"></div>
+      </div>
+
+      <div class="legend">
+        <span class="agent-syntax">syntax</span>
+        <span class="agent-sprinter">sprinter</span>
+        <span class="agent-pattern">pattern</span>
+        <span class="agent-lateral">lateral</span>
+        <span class="agent-eraser">eraser</span>
+      </div>
+    </section>
+
+    <section class="log-pane">
+      <h2>agent activity</h2>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
