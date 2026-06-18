@@ -132,6 +132,22 @@ python scripts/run_benchmark.py --day saturday --model gpt-5 \
 
 > **Note:** This is an English, US-centric puzzle set. Models trained predominantly on non-US-English corpora start at a knowledge-coverage disadvantage that is independent of raw reasoning ability — worth stating when reporting cross-model results.
 
+## Inspecting a run
+
+The benchmark stores per-puzzle grades, which hide *how* an agent solved. To see
+the actual attempt, re-solve one puzzle and render its trace:
+
+```bash
+python scripts/visualize_episode.py --model ollama/llama3.2 --date 2026-05-11 \
+    --max-rounds 2 --html results/viz.html
+```
+
+It prints a colour-coded board overlay (agent letters vs. the solution), a
+per-clue table of what each agent committed vs. the truth (with which agent
+placed it), and the chronological action log (`spec` / `place` / `reject` /
+`abstain`). `--html` also writes an openable page with the grid and log. Note: it
+re-runs the model (the original run's trace isn't persisted), so use one puzzle.
+
 ## Metrics
 
 | Metric | Description |
