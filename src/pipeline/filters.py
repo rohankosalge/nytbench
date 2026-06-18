@@ -9,6 +9,9 @@ Additional rules:
   - Rebus puzzles are discarded (they break the one-letter-per-square action
     space). See `detect_rebus_by_length` for the detection mechanism.
   - Only standard 15x15 (weekday) and 21x21 (Sunday) grids are kept.
+  - Puzzles with a white square whose solution is not a single A-Z letter are
+    discarded (they are unsolvable through the action space). See
+    `detect_non_alpha_squares`.
 """
 
 import json
@@ -58,6 +61,26 @@ def detect_rebus_by_length(puzzle: dict) -> tuple[bool, str]:
     return (False, "")
 
 
+def detect_non_alpha_squares(puzzle: dict) -> tuple[bool, str]:
+    """Detect white squares whose solution is not a single A-Z letter.
+
+    A white cell holding a blank/space (or any non-letter) is a parsing artifact:
+    it cannot be filled through the one-letter-per-square action space, and the
+    validator rejects non-alphabetic writes, so the puzzle is unsolvable as a
+    benchmark item. Returns (True, reason) if any such square exists.
+    """
+    width = puzzle.get("width") or 1
+    for i, sq in enumerate(puzzle.get("solution", [])):
+        if sq == ".":
+            continue
+        if len(sq) != 1 or not sq.isalpha():
+            return True, (
+                f"non-alphabetic white square at row {i // width + 1}, "
+                f"col {i % width + 1}: {sq!r}"
+            )
+    return False, ""
+
+
 def passes_filters(puzzle: dict) -> tuple[bool, str]:
     """Return (True, "") if the puzzle passes all filters, else (False, reason)."""
     try:
@@ -70,6 +93,10 @@ def passes_filters(puzzle: dict) -> tuple[bool, str]:
 
     is_rebus, reason = detect_rebus_by_length(puzzle)
     if is_rebus:
+        return False, reason
+
+    bad_square, reason = detect_non_alpha_squares(puzzle)
+    if bad_square:
         return False, reason
 
     size = (puzzle.get("width"), puzzle.get("height"))
