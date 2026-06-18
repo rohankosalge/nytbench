@@ -13,9 +13,12 @@ It re-runs the model (the original run's trace was not saved), so it makes the
 same model calls a normal solve would — keep it to one puzzle.
 
 Usage:
+    # Re-run the model on one puzzle and render the live trace:
     python scripts/visualize_episode.py --model ollama/llama3.2 --date 2026-05-11
     python scripts/visualize_episode.py --model ollama/qwen2.5:7b --day monday --max-rounds 2
-    python scripts/visualize_episode.py --model ollama/llama3.2 --date 2026-05-11 --html out.html
+
+    # Render a saved sidecar (run_benchmark.py --save-trace) — no model, no re-run:
+    python scripts/visualize_episode.py --trace results/traces/ollama_llama3.2/2026-05-11.json --html out.html
 """
 
 import argparse
@@ -172,7 +175,12 @@ table.log td,table.log th{{border:1px solid #ddd;padding:2px 8px;font-size:12px}
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Visualize a multi-agent solve.")
-    ap.add_argument("--model", required=True, help="e.g. ollama/llama3.2")
+    ap.add_argument(
+        "--trace",
+        help="Render a saved trace sidecar (from run_benchmark.py --save-trace) "
+        "with no model re-run. Mutually exclusive with --model.",
+    )
+    ap.add_argument("--model", help="e.g. ollama/llama3.2 (re-runs the model)")
     ap.add_argument("--date", help="Puzzle date YYYY-MM-DD")
     ap.add_argument("--day", help="Weekday split to pick from (e.g. monday)")
     ap.add_argument("--puzzle", help="Explicit path to a puzzle JSON")
@@ -182,14 +190,22 @@ def main() -> None:
     ap.add_argument("--html", help="Also write an HTML visualization to this path")
     ap.add_argument("--no-color", action="store_true", help="Disable ANSI colour")
     args = ap.parse_args()
-
-    path = _find_puzzle(args.date, args.day, args.puzzle)
-    puzzle = json.loads(path.read_text())
     color = sys.stdout.isatty() and not args.no_color
 
-    print(f"Solving {path.stem} ({puzzle.get('weekday')}) with {args.model} — re-runs the model…")
-    llm = load_llm(args.model, max_tokens=args.max_tokens, temperature=args.temperature)
-    episode = run_episode(llm, puzzle, max_rounds=args.max_rounds)
+    if args.trace:
+        # Render a saved sidecar — no model, no re-run.
+        trace = json.loads(Path(args.trace).read_text())
+        puzzle, episode, model = trace["puzzle"], trace["episode"], trace["model"]
+        label = puzzle.get("date", Path(args.trace).stem)
+    elif args.model:
+        path = _find_puzzle(args.date, args.day, args.puzzle)
+        puzzle = json.loads(path.read_text())
+        model, label = args.model, path.stem
+        print(f"Solving {label} ({puzzle.get('weekday')}) with {model} — re-runs the model…")
+        llm = load_llm(args.model, max_tokens=args.max_tokens, temperature=args.temperature)
+        episode = run_episode(llm, puzzle, max_rounds=args.max_rounds)
+    else:
+        ap.error("provide either --trace <sidecar.json> or --model <id> (+ --date/--day/--puzzle)")
 
     grid, sol = episode["grid"], puzzle["solution"]
     white = sum(1 for s in sol if s != ".")
@@ -197,7 +213,7 @@ def main() -> None:
     filled = sum(1 for a, s in zip(grid, sol) if s != "." and a != " ")
 
     bar = "=" * 60
-    print(f"\n{bar}\n  {path.stem}  ·  {args.model}")
+    print(f"\n{bar}\n  {label}  ·  {model}")
     print(f"  solved={episode['complete']}  accuracy={correct}/{white} ({correct/white:.0%})  "
           f"filled={filled}/{white} ({filled/white:.0%})  llm_calls={episode['turns']}\n{bar}\n")
     print(render_board(puzzle, grid, color))
@@ -208,7 +224,7 @@ def main() -> None:
 
     if args.html:
         out = Path(args.html)
-        out.write_text(render_html(puzzle, grid, episode, f"{path.stem} · {args.model}"))
+        out.write_text(render_html(puzzle, grid, episode, f"{label} · {model}"))
         print(f"\nHTML written to {out}  (open in a browser)")
 
 

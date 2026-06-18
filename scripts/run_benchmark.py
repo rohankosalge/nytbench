@@ -162,6 +162,17 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42, help="Random seed for puzzle sampling")
     parser.add_argument("--out", default=None, help="JSONL output file path")
     parser.add_argument("--splits-dir", default=str(SPLITS_DIR), help="Path to stratified splits")
+    parser.add_argument(
+        "--save-trace",
+        action="store_true",
+        help="Write a per-puzzle trace sidecar (puzzle + grid + placements + log) "
+        "that scripts/visualize_episode.py can render without re-running the model",
+    )
+    parser.add_argument(
+        "--trace-dir",
+        default="results/traces",
+        help="Directory for --save-trace sidecars (grouped by model)",
+    )
     args = parser.parse_args()
 
     split_dir = Path(args.splits_dir) / args.day
@@ -180,6 +191,13 @@ def main() -> None:
     llm = load_llm(args.model, max_tokens=args.max_tokens, temperature=args.temperature)
     out_path = Path(args.out) if args.out else Path(f"results/{args.day}_{args.model}.jsonl")
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    trace_dir = None
+    if args.save_trace:
+        # Group by a filesystem-safe model name (e.g. "ollama/qwen2.5:7b").
+        safe_model = args.model.replace("/", "_").replace(":", "-")
+        trace_dir = Path(args.trace_dir) / safe_model
+        trace_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
     with out_path.open("w") as f:
@@ -201,6 +219,28 @@ def main() -> None:
             f.write(json.dumps(record) + "\n")
             f.flush()
 
+            if trace_dir is not None:
+                # Self-contained sidecar: stringify the tuple placement keys so it
+                # is JSON-serialisable, and embed the puzzle so the visualizer can
+                # render without re-running the model. (Lives under git-ignored
+                # results/, so the embedded puzzle content is never committed.)
+                trace = {
+                    "model": args.model,
+                    "max_rounds": args.max_rounds,
+                    "grade": grade_result,
+                    "episode": {
+                        "grid": episode["grid"],
+                        "complete": episode["complete"],
+                        "turns": episode["turns"],
+                        "placements": {
+                            f"{k[0]}-{k[1]}": v for k, v in episode["placements"].items()
+                        },
+                        "log": episode["log"],
+                    },
+                    "puzzle": puzzle_meta,
+                }
+                (trace_dir / f"{puz_path.stem}.json").write_text(json.dumps(trace))
+
             status = "SOLVED" if record["solved"] else f"fill={record['fill_rate']:.0%}"
             print(f"   {status}  turns={record['turns']}")
 
@@ -210,6 +250,8 @@ def main() -> None:
     summary_path.write_text(json.dumps(summary, indent=2))
     print(f"Results written to {out_path}")
     print(f"Summary written to {summary_path}")
+    if trace_dir is not None:
+        print(f"Traces written to {trace_dir}/  (view with scripts/visualize_episode.py --trace ...)")
 
 
 if __name__ == "__main__":
