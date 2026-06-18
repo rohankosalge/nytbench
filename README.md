@@ -101,6 +101,12 @@ python scripts/build_dataset.py --sync
 python scripts/run_benchmark.py --day monday --model claude-sonnet-4-6 --puzzles 50
 ```
 
+Each run writes to its own subfolder under `results/` — by default
+`results/<day>_<model>_<timestamp>/`, containing `results.jsonl`, `summary.json`,
+and (with `--save-trace`) a `traces/` directory. Pass `--run-name` to set a fixed
+folder name, or `--results-root` to relocate the parent. Repeated runs never
+overwrite each other.
+
 ## Models
 
 Any model is driven through the same `llm(system, messages) -> str` callable, so the field is open-ended. The provider is selected by the `--model` prefix:
@@ -134,19 +140,23 @@ python scripts/run_benchmark.py --day saturday --model gpt-5 \
 
 ## Inspecting a run
 
-The benchmark stores per-puzzle grades, which hide *how* an agent solved. To see
-the actual attempt, re-solve one puzzle and render its trace:
+The benchmark stores per-puzzle grades, which hide *how* an agent solved.
+`scripts/visualize_episode.py` renders a colour-coded board overlay (agent letters
+vs. the solution), a per-clue table of what each agent committed vs. the truth
+(with which agent placed it), and the chronological action log (`spec` / `place`
+/ `reject` / `abstain`). `--html` writes an openable page with the grid and log.
+
+Two ways to use it:
 
 ```bash
-python scripts/visualize_episode.py --model ollama/llama3.2 --date 2026-05-11 \
-    --max-rounds 2 --html results/viz.html
-```
+# 1. Render a saved trace — no model, no cost, repeatable.
+#    Capture traces during the benchmark with --save-trace, then point at one:
+python scripts/run_benchmark.py --day monday --model ollama/qwen2.5:7b --puzzles 5 --save-trace
+python scripts/visualize_episode.py --trace results/<run-name>/traces/2026-05-11.json --html viz.html
 
-It prints a colour-coded board overlay (agent letters vs. the solution), a
-per-clue table of what each agent committed vs. the truth (with which agent
-placed it), and the chronological action log (`spec` / `place` / `reject` /
-`abstain`). `--html` also writes an openable page with the grid and log. Note: it
-re-runs the model (the original run's trace isn't persisted), so use one puzzle.
+# 2. One-off: re-solve a single puzzle live (re-runs the model, so use one puzzle).
+python scripts/visualize_episode.py --model ollama/llama3.2 --date 2026-05-11 --max-rounds 2
+```
 
 ## Metrics
 

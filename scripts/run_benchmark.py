@@ -32,6 +32,7 @@ import argparse
 import json
 import os
 import random
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -160,18 +161,23 @@ def main() -> None:
         ),
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for puzzle sampling")
-    parser.add_argument("--out", default=None, help="JSONL output file path")
     parser.add_argument("--splits-dir", default=str(SPLITS_DIR), help="Path to stratified splits")
+    parser.add_argument(
+        "--results-root",
+        default="results",
+        help="Root directory under which each run gets its own subfolder",
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Subfolder name for this run under --results-root "
+        "(default: <day>_<model>_<timestamp>)",
+    )
     parser.add_argument(
         "--save-trace",
         action="store_true",
         help="Write a per-puzzle trace sidecar (puzzle + grid + placements + log) "
         "that scripts/visualize_episode.py can render without re-running the model",
-    )
-    parser.add_argument(
-        "--trace-dir",
-        default="results/traces",
-        help="Directory for --save-trace sidecars (grouped by model)",
     )
     args = parser.parse_args()
 
@@ -189,14 +195,20 @@ def main() -> None:
         return
 
     llm = load_llm(args.model, max_tokens=args.max_tokens, temperature=args.temperature)
-    out_path = Path(args.out) if args.out else Path(f"results/{args.day}_{args.model}.jsonl")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Every run gets its own designated subfolder under results/, holding the
+    # JSONL, the summary, and (optionally) the per-puzzle traces. Default name is
+    # <day>_<model>_<timestamp> with a filesystem-safe model (e.g. ollama/qwen2.5:7b
+    # -> ollama_qwen2.5-7b), so repeated runs never overwrite each other.
+    safe_model = args.model.replace("/", "_").replace(":", "-")
+    run_name = args.run_name or f"{args.day}_{safe_model}_{datetime.now():%Y%m%d-%H%M%S}"
+    run_dir = Path(args.results_root) / run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    out_path = run_dir / "results.jsonl"
 
     trace_dir = None
     if args.save_trace:
-        # Group by a filesystem-safe model name (e.g. "ollama/qwen2.5:7b").
-        safe_model = args.model.replace("/", "_").replace(":", "-")
-        trace_dir = Path(args.trace_dir) / safe_model
+        trace_dir = run_dir / "traces"
         trace_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
@@ -246,12 +258,13 @@ def main() -> None:
 
     summary = aggregate(results)
     print_report(summary)
-    summary_path = out_path.with_suffix(".summary.json")
+    summary_path = run_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2))
-    print(f"Results written to {out_path}")
-    print(f"Summary written to {summary_path}")
+    print(f"\nRun folder: {run_dir}/")
+    print(f"  results.jsonl  ({len(results)} puzzles)")
+    print(f"  summary.json")
     if trace_dir is not None:
-        print(f"Traces written to {trace_dir}/  (view with scripts/visualize_episode.py --trace ...)")
+        print(f"  traces/        (view with scripts/visualize_episode.py --trace {trace_dir}/<date>.json)")
 
 
 if __name__ == "__main__":
