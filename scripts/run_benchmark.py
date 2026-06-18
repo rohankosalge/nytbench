@@ -13,13 +13,19 @@ Environment variables:
     OPENAI_API_KEY     — required for OpenAI models (gpt*/o*)
     GOOGLE_API_KEY     — required for Google models (gemini*)
     OPENROUTER_API_KEY — required for OpenRouter passthrough models (openrouter/*)
+    OLLAMA_BASE_URL    — optional; local Ollama endpoint (default localhost:11434)
 
-OpenRouter passthrough lets you evaluate almost any model (Grok, DeepSeek,
-Llama, Qwen, Mistral, ...) through one OpenAI-compatible endpoint. Pass the
-model as `openrouter/<provider>/<model>`, e.g.:
+Local (free, no key, no rate limits) via Ollama — pass `ollama/<model-tag>`:
+
+    --model ollama/qwen2.5:7b        # after: ollama pull qwen2.5:7b
+    --model ollama/llama3.2          # any already-pulled model
+
+OpenRouter passthrough lets you evaluate almost any hosted model (Grok,
+DeepSeek, Llama, Qwen, Mistral, ...) through one OpenAI-compatible endpoint.
+Pass the model as `openrouter/<provider>/<model>`, e.g.:
 
     --model openrouter/x-ai/grok-4
-    --model openrouter/deepseek/deepseek-r1
+    --model openrouter/qwen/qwen-2.5-72b-instruct
 """
 
 import argparse
@@ -57,7 +63,23 @@ def load_llm(model: str, max_tokens: int = 4096, temperature: float | None = Non
       would exclude the very models we want to evaluate. Pass it only for
       backends/models that accept it (OpenAI base chat, Gemini, Sonnet, etc.).
     """
-    if model.startswith("openrouter/"):
+    if model.startswith("ollama/"):
+        # Local, free, no rate limits: everything after the prefix is the Ollama
+        # model tag (e.g. "ollama/qwen2.5:7b" -> "qwen2.5:7b"). Ollama exposes an
+        # OpenAI-compatible API, so we reuse ChatOpenAI pointed at the local
+        # daemon. The api_key is required by the client but ignored by Ollama.
+        # Override the host with OLLAMA_BASE_URL (default http://localhost:11434/v1).
+        from langchain_openai import ChatOpenAI
+        kwargs = {
+            "model": model.split("/", 1)[1],
+            "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            "api_key": "ollama",  # placeholder; Ollama does not check it
+            "max_tokens": max_tokens,
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        chat = ChatOpenAI(**kwargs)
+    elif model.startswith("openrouter/"):
         # Passthrough: everything after the prefix is the OpenRouter model id
         # (e.g. "openrouter/x-ai/grok-4" -> "x-ai/grok-4"). OpenRouter speaks the
         # OpenAI-compatible API, so we reuse ChatOpenAI with a custom base_url and
@@ -94,7 +116,7 @@ def load_llm(model: str, max_tokens: int = 4096, temperature: float | None = Non
     else:
         raise ValueError(
             f"Unrecognised model prefix for: {model!r} "
-            "(expected one of: openrouter/*, claude*, gpt*/o*, gemini*)"
+            "(expected one of: ollama/*, openrouter/*, claude*, gpt*/o*, gemini*)"
         )
     return _wrap_chat_model(chat)
 

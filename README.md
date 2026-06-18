@@ -111,8 +111,11 @@ Any model is driven through the same `llm(system, messages) -> str` callable, so
 | OpenAI | `gpt*` / `o*` | `OPENAI_API_KEY` | `gpt-5`, `o4-mini` |
 | Google | `gemini*` | `GOOGLE_API_KEY` | `gemini-2.5-pro` |
 | OpenRouter (passthrough) | `openrouter/<provider>/<model>` | `OPENROUTER_API_KEY` | `openrouter/x-ai/grok-4`, `openrouter/deepseek/deepseek-r1` |
+| Ollama (local, free) | `ollama/<model-tag>` | none (local daemon) | `ollama/qwen2.5:7b`, `ollama/llama3.2` |
 
 The **OpenRouter passthrough** reaches almost any hosted model (Grok, DeepSeek, Llama, Qwen, Mistral, …) through one OpenAI-compatible endpoint — everything after the `openrouter/` prefix is sent verbatim as the OpenRouter model id. Note: Fable 5 cannot be used due to the recent rollback.
+
+The **Ollama** route runs open-source models **locally — free, no API key, no rate limits**. Install [Ollama](https://ollama.com), `ollama pull <model>`, then pass `ollama/<model-tag>`. Override the host with `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`). Model size is bounded by your RAM (≈7B fits 16 GB; 70B+ needs ~48 GB).
 
 ### Fair-comparison flags
 
